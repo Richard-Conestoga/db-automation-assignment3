@@ -62,25 +62,15 @@ jobs:
           sudo ln -s $(pwd)/flyway-10.8.1/flyway /usr/local/bin/flyway
           flyway -v
           
-      - name: Run initial Flyway migrations
+      - name: Run Flyway migrations
         env:
           FLYWAY_URL: jdbc:mysql://127.0.0.1:3306/${{ secrets.MYSQL_DATABASE }}
           FLYWAY_USER: ${{ secrets.MYSQL_USER }}
           FLYWAY_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
-          FLYWAY_LOCATIONS: filesystem:./flyway/migrations_initial
+          FLYWAY_LOCATIONS: filesystem:./flyway/migrations_initial,filesystem:./flyway/migrations_incremental
         run: |
           flyway migrate
-          echo "✅ Initial migrations completed"
-          
-      - name: Run incremental Flyway migrations
-        env:
-          FLYWAY_URL: jdbc:mysql://127.0.0.1:3306/${{ secrets.MYSQL_DATABASE }}
-          FLYWAY_USER: ${{ secrets.MYSQL_USER }}
-          FLYWAY_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
-          FLYWAY_LOCATIONS: filesystem:./flyway/migrations_incremental
-        run: |
-          flyway migrate
-          echo "✅ Incremental migrations completed"
+          echo "✅ All migrations completed"
           
       - name: Display migration info
         env:
