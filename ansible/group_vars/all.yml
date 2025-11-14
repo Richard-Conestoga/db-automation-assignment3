@@ -1,0 +1,8 @@
+---
+mysql_container_name: "mysql_db_automation"
+mysql_root_password: "{{ lookup('env', 'MYSQL_ROOT_PASSWORD') | default('rootpassword123', true) }}"
+mysql_database: "{{ lookup('env', 'MYSQL_DATABASE') | default('subscribers_db', true) }}"
+mysql_user: "{{ lookup('env', 'MYSQL_USER') | default('dbuser', true) }}"
+mysql_password: "{{ lookup('env', 'MYSQL_PASSWORD') | default('dbpassword123', true) }}"
+mysql_port: "{{ lookup('env', 'MYSQL_PORT') | default('3306', true) }}"
+flyway_version: "10.8.1"

@@ -3,28 +3,28 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  
-  vars:
-    mysql_container_name: "mysql_db_automation"
-    mysql_root_password: "Secret5555"
-    mysql_database: "subscribers_db"
-    mysql_user: "dbuser"
-    mysql_password: "Secret5555"
-    mysql_port: 3306
-    flyway_version: "10.8.1"
-    
+  vars_files:
+    - group_vars/all.yml
+
   tasks:
-    - name: Pull MySQL Docker image
-      community.docker.docker_image:
-        name: mysql:8.0
-        source: pull
-        
-    - name: Start MySQL container
+    - name: Remove any existing MySQL container
+      community.docker.docker_container:
+        name: "{{ mysql_container_name }}"
+        state: absent
+      ignore_errors: yes
+
+    - name: Create flyway_network (if not exists)
+      community.docker.docker_network:
+        name: flyway_network
+        state: present
+
+    - name: "Start MySQL container"
       community.docker.docker_container:
         name: "{{ mysql_container_name }}"
         image: mysql:8.0
         state: started
-        restart_policy: unless-stopped
+        networks:
+          - name: flyway_network
         ports:
           - "{{ mysql_port }}:3306"
         env:
@@ -36,45 +36,30 @@
           test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
           interval: 10s
           timeout: 5s
-          retries: 5
-          
-    - name: Wait for MySQL to be ready
-      wait_for:
-        host: localhost
-        port: "{{ mysql_port }}"
-        delay: 10
-        timeout: 60
-        
-    - name: Wait additional time for MySQL initialization
-      pause:
-        seconds: 15
-        
-    - name: Verify database exists
-      community.mysql.mysql_query:
-        login_host: localhost
-        login_user: "{{ mysql_user }}"
-        login_password: "{{ mysql_password }}"
-        login_db: "{{ mysql_database }}"
-        query: "SELECT 1"
-      register: db_check
-      retries: 5
-      delay: 5
-      until: db_check is succeeded
-      
-    - name: Create Flyway Docker network
-      community.docker.docker_network:
-        name: flyway_network
-        
-    - name: Connect MySQL container to network
-      community.docker.docker_network:
-        name: flyway_network
-        connected:
-          - "{{ mysql_container_name }}"
-        appends: yes
-        
-    - name: Run initial Flyway migrations
+          retries: 10
+
+    - name: Wait until MySQL container is healthy
+      community.docker.docker_container_info:
+        name: "{{ mysql_container_name }}"
+      register: mysql_info
+      until: mysql_info.container.State.Health.Status == "healthy"
+      retries: 10
+      delay: 6
+
+    - name: "Sanity-check: Test DNS resolution on Docker network"
       community.docker.docker_container:
-        name: flyway_migration_initial
+        name: "dns-test"
+        image: busybox
+        networks:
+          - name: flyway_network
+        command: "ping -c 2 {{ mysql_container_name }}"
+        state: started
+        cleanup: yes
+        detach: false
+
+    - name: Run Flyway migrations
+      community.docker.docker_container:
+        name: flyway_migration
         image: "flyway/flyway:{{ flyway_version }}"
         state: started
         detach: false
@@ -82,19 +67,18 @@
         networks:
           - name: flyway_network
         volumes:
-          - "{{ playbook_dir }}/../flyway/migrations_initial:/flyway/sql"
+          - "{{ playbook_dir }}/../flyway/migrations_initial:/flyway/sql/initial"
+          - "{{ playbook_dir }}/../flyway/migrations_incremental:/flyway/sql/incremental"
         command: >
           -url=jdbc:mysql://{{ mysql_container_name }}:3306/{{ mysql_database }}
           -user={{ mysql_user }}
           -password={{ mysql_password }}
-          -connectRetries=5
+          -locations=filesystem:/flyway/sql/initial,filesystem:/flyway/sql/incremental
+          -connectRetries=10
           migrate
-          
+
     - name: Display success message
       debug:
-        msg: 
+        msg:
           - "MySQL environment provisioned successfully!"
-          - "Database: {{ mysql_database }}"
-          - "User: {{ mysql_user }}"
-          - "Port: {{ mysql_port }}"
-          - "Initial migrations completed"
+          - "All migrations (initial + incremental) completed"

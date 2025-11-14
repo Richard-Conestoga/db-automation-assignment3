@@ -27,9 +27,9 @@
       ignore_errors: yes
       
     - name: Remove MySQL data volume (optional - uncomment if needed)
-      # community.docker.docker_volume:
-      #   name: mysql_data
-      #   state: absent
+      community.docker.docker_volume:
+        name: mysql_data
+        state: absent
       when: false
       
     - name: Display success message
