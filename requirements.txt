@@ -1,0 +1,14 @@
+# Ansible and collections
+ansible==9.1.0
+
+# Docker library (required by community.docker collection)
+docker==7.0.0
+requests==2.31.0
+
+# Python MySQL library for Ansible modules
+PyMySQL==1.1.0
+
+# For testing
+pytest==7.4.3
+pymysql==1.1.0
+cryptography==41.0.7
